@@ -12,6 +12,7 @@
 package org.mule.modules.varnish;
 
 import org.apache.commons.codec.binary.Hex;
+import org.apache.commons.lang.StringUtils;
 import org.apache.log4j.Logger;
 import org.jboss.netty.bootstrap.ClientBootstrap;
 import org.jboss.netty.channel.Channel;
@@ -60,6 +61,7 @@ import java.util.concurrent.locks.ReentrantLock;
 @Connector(name = "varnish", minMuleVersion = "3.2")
 public class VarnishModule extends SimpleChannelHandler {
     private static final Logger LOGGER = Logger.getLogger(VarnishModule.class);
+    private static String BAN_COMMAND = "ban.url ?\n";
 
     private Channel channel;
     private final Lock lock = new ReentrantLock();
@@ -80,13 +82,21 @@ public class VarnishModule extends SimpleChannelHandler {
      * @param host Host of the instance running Varnish
      * @param port Port at which the management interface is located
      * @param secret Shared secret to be used when connecting to a secured management port
+     * @param version Varnish version to be used
      * @throws ConnectionException if cannot connect
      */
     @Connect
-    public void connect(@ConnectionKey String host, int port, String secret) throws ConnectionException {
+    public void connect(@ConnectionKey String host, int port, String secret, @Optional @Default("3") String version) throws ConnectionException {
         ChannelFactory factory = new NioClientSocketChannelFactory(Executors.newCachedThreadPool(), Executors.newCachedThreadPool());
 
         final SimpleChannelHandler simpleChannelHandler = this;
+        
+        int varnishVersion = Integer.parseInt(StringUtils.split(version, '.')[0]);
+        LOGGER.info("VERSION: " + varnishVersion);
+        
+        if (varnishVersion > 3) {
+        	BAN_COMMAND = "ban req.url == ?\n";
+        }
 
         ClientBootstrap bootstrap = new ClientBootstrap(factory);
         bootstrap.setPipelineFactory(new VarnishPipelineFactory(simpleChannelHandler));
@@ -212,12 +222,12 @@ public class VarnishModule extends SimpleChannelHandler {
     @InvalidateConnectionOn(exception = VarnishException.class)
     public void banUrl(String url) throws VarnishException {
         LOGGER.info("Banning URL " + url + " from Varnish cache located at " + channel.getRemoteAddress().toString());
-
+        
         Callback callback = new Callback();
         lock.lock();
         try {
             callbacks.add(callback);
-            ChannelFuture future = channel.write("ban.url " + url + "\n");
+            ChannelFuture future = channel.write(BAN_COMMAND.replace("?", url));
             future.awaitUninterruptibly(timeout, TimeUnit.MILLISECONDS);
             if (!future.isSuccess()) {
                 throw new VarnishChannelException("Unable to ban url", future.getCause());
