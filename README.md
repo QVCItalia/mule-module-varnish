@@ -42,4 +42,36 @@ application:
     </dependency>
 
 ## Usage
+**Config: <varnish:config/>**
+
+Parameters
+
++ name: configuration name
++ host: Varnish machine IP address
++ port: Varnish administrator port, usually 6082
++ secret: secret string, it can be found in /etc/varnish/secret Varnish machine
++ version (optional):  Varnish release used
+
+Example
+
+	<varnish:config name="VarnishConfig" host="10.211.55.115" port="6082" secret="1483dcc6-7643-4d4e-b250-3254e40c1d2f" version="4.4.0" />
+
+
+**Ban: <varnish:ban-url/>**
+
+Parameters
+
++ config-ref (optional): reference to a configuration tag
++ url: URL that it has to be banned
++ host (optional): see Config 
++ port (optional): see Config
++ secret (optional): see Config
++ version (optional): see Config
+
+N.B. 
+If config-ref is not set, host, port, secret and version must be set. Even if config-ref is set, if one of host, port, secret or version is set, all of the others must be set.
+
+Example
+
+	<varnish:ban-url config-ref="VarnishConfig" url="/api/nodes?path=test" />
 
